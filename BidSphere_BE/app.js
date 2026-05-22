@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import fileUpload from "express-fileupload";
 import { connectDB } from "./database/connection.js";
 import { config } from "dotenv";
+import { errorMiddleware } from "./middlewares/error.js";
 
 const app = express();
 config({
@@ -28,6 +29,8 @@ app.use(fileUpload({
 }));
 
 connectDB();
+
+app.use(errorMiddleware);
 
 
 export default app;

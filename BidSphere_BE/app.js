@@ -5,6 +5,7 @@ import fileUpload from "express-fileupload";
 import { connectDB } from "./database/connection.js";
 import { config } from "dotenv";
 import { errorMiddleware } from "./middlewares/error.js";
+import userRoutes from "./router/userRoutes.js";
 
 const app = express();
 config({
@@ -27,6 +28,8 @@ app.use(fileUpload({
     useTempFiles: true,
     tempFileDir: "/tmp/",
 }));
+
+app.use("/api/v1/users", userRoutes);
 
 connectDB();
 

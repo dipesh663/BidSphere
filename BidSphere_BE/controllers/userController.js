@@ -1,8 +1,9 @@
+import { catchAsyncErrors } from "../middlewares/catchAsyncErrors.js";
 import ErrorHandler from "../middlewares/error.js";
 import { User } from "../models/userSchema.js";
 import {v2 as cloudinary} from "cloudinary";
 
-export const register = async(req, res, next) => {
+export const register = catchAsyncErrors(async(req, res, next) => {
     if(!req.files || Object.keys(req.files).length === 0) {
         return next(new ErrorHandler("Profile Image Required.", 400));
     }
@@ -87,4 +88,4 @@ export const register = async(req, res, next) => {
         success: true,
         message: "User registered successfully.",
     });
-};
+});

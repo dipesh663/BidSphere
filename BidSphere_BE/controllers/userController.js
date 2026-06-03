@@ -87,3 +87,23 @@ export const register = catchAsyncErrors(async(req, res, next) => {
 
     generateToken(user, "User registered successfully.", 201, res);
 });
+
+export const login = catchAsyncErrors(async(req, res, next) => {
+    const {email, password} = req.body;
+    if(!email || !password){
+        return next(new ErrorHandler("Please provide email and password.", 400));
+    }
+
+    const user = await User.findOne({email}).select("+password");
+    if(!user){
+        return next(new ErrorHandler("Invalid credentials.", 401));
+    }
+
+    const isPasswordMatched = await user.comparePassword(password);
+    if(!isPasswordMatched){
+        return next(new ErrorHandler("Invalid credentials.", 401));
+    }
+
+    generateToken(user, "Login successful.", 200, res);
+});
+

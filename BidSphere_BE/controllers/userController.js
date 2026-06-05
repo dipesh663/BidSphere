@@ -87,3 +87,51 @@ export const register = catchAsyncErrors(async(req, res, next) => {
 
     generateToken(user, "User registered successfully.", 201, res);
 });
+
+export const login = catchAsyncErrors(async(req, res, next) => {
+    const {email, password} = req.body;
+    if(!email || !password){
+        return next(new ErrorHandler("Please provide email and password.", 400));
+    }
+
+    const user = await User.findOne({email}).select("+password");
+    if(!user){
+        return next(new ErrorHandler("Invalid credentials.", 401));
+    }
+
+    const isPasswordMatched = await user.comparePassword(password);
+    if(!isPasswordMatched){
+        return next(new ErrorHandler("Invalid credentials.", 401));
+    }
+
+    generateToken(user, "Login successful.", 200, res);
+});
+
+export const getProfile = catchAsyncErrors(async(req, res, next) => {
+    const user = req.user;
+    res.status(200).json({
+        success: true,
+        user,
+    }); 
+});
+
+export const logout = catchAsyncErrors(async(req, res, next) => {
+    res.status(200).cookie("token", "", {
+        expires: new Date(Date.now()),
+        httpOnly: true,
+    }).json({
+        success: true,
+        message: "Logged out successfully.",
+    });
+});
+
+
+export const fetchLeaderboard = catchAsyncErrors(async(req, res, next) => {
+    const users = await User.find({moneySpent: {$gt: 0}});
+    //algorithm to sort users based on money spent in descending order
+    const leaderboard = users.sort((a, b) => b.moneySpent - a.moneySpent);
+    res.status(200).json({
+        success: true,
+        leaderboard,
+    });
+});

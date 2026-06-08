@@ -35,7 +35,7 @@ export const addNewAuctionItem = catchAsyncErrors(async (req, res, next) => {
         endTime: { $gt: new Date() },
     });
     if (alreadyOneAuctionActive.length > 0) {
-        return next(new ErrorHandler("You already have an active auction.")
+        return next(new ErrorHandler("You already have an active auction.", 400)
     );
     }
     try {

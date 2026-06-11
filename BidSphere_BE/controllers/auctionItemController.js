@@ -69,3 +69,13 @@ export const addNewAuctionItem = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler(error.message || "Failed to create auction item.", 500));
     }
 });
+
+export const getAllItems = catchAsyncErrors(async (req, res, next) =>{});
+
+export const getMyAuctionItems = catchAsyncErrors(async (req, res, next) =>{});
+
+export const getAuctionDetails = catchAsyncErrors(async (req, res, next) =>{});
+
+export const removeFromAuction = catchAsyncErrors(async (req, res, next) =>{});
+
+export const republishItem = catchAsyncErrors(async (req, res, next) =>{});

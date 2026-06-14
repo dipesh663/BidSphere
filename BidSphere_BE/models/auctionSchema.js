@@ -26,7 +26,7 @@ const auctionSchema = new mongoose.Schema({
             required: true
         }
     },
-    createdAt: {
+    createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true

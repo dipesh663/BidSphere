@@ -80,7 +80,11 @@ export const getAllItems = catchAsyncErrors(async (req, res, next) =>{
 });
 
 export const getMyAuctionItems = catchAsyncErrors(async (req, res, next) =>{
-    
+    const items = await Auction.find({ createdBy: req.user._id});
+    res.status(200).json({
+        success: true,
+        items,
+    });
     
 });
 

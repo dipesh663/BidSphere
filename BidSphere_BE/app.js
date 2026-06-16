@@ -6,6 +6,7 @@ import { connectDB } from "./database/connection.js";
 import { config } from "dotenv";
 import { errorMiddleware } from "./middlewares/error.js";
 import userRoutes from "./router/userRoutes.js";
+import auctionItemRouter from "./router/auctionItemRoutes.js";
 
 const app = express();
 config({
@@ -30,6 +31,7 @@ app.use(fileUpload({
 }));
 
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/auctionitem", auctionItemRouter);
 
 connectDB();
 

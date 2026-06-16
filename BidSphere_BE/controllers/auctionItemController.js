@@ -33,7 +33,7 @@ export const addNewAuctionItem = catchAsyncErrors(async (req, res, next) => {
 
     const alreadyOneAuctionActive = await Auction.find({
         createdBy: req.user._id,
-        endTime: { $gt: new Date() },
+        endTime: { $gt: Date.now() },
     });
     if (alreadyOneAuctionActive.length > 0) {
         return next(new ErrorHandler("You already have an active auction.", 400)
@@ -105,6 +105,94 @@ export const getAuctionDetails = catchAsyncErrors(async (req, res, next) =>{
     });
 });
 
-export const removeFromAuction = catchAsyncErrors(async (req, res, next) =>{});
+export const removeFromAuction = catchAsyncErrors(async (req, res, next) =>{
+    const {id} = req.params;
+    if(!mongoose.Types.ObjectId.isValid(id)){
+        return next(new ErrorHandler("Invalid Id format.", 400));
+    }
+    const auctionItem = await Auction.findById(id);
+    if(!auctionItem){
+        return next(new ErrorHandler("Auction not found.", 404));
+    }
 
-export const republishItem = catchAsyncErrors(async (req, res, next) =>{});
+    await auctionItem.deleteOne();
+    res.status(200).json({
+        success: true,
+        message: "Auction item deleted successsfully.",
+    });
+});
+
+export const republishItem = catchAsyncErrors(async (req, res, next) =>{
+    const {id} = req.params;
+    if(!mongoose.Types.ObjectId.isValid(id)){
+        return next(new ErrorHandler("Invalid Id format.", 400));
+    }
+    let auctionItem = await Auction.findById(id);
+    if(!auctionItem){
+        return next(new ErrorHandler("Auction not found.", 404));
+    }
+
+    if(!req.body || !req.body.startTime || !req.body.endTime){
+        return next(new ErrorHandler("Start time and End time for republish is mandatory."));
+    }
+
+    if(new Date(auctionItem.endTime) > Date.now()){
+        return next(
+            new ErrorHandler("Auction is already active, cannot republish", 400)
+        );
+    }
+    
+    const startTimeDate = new Date(req.body.startTime);
+    const endTimeDate = new Date(req.body.endTime);
+    
+    if(isNaN(startTimeDate.getTime())){
+        return next(new ErrorHandler("Invalid start time format.", 400));
+    }
+    if(isNaN(endTimeDate.getTime())){
+        return next(new ErrorHandler("Invalid end time format.", 400));
+    }
+    
+    let data = {
+        startTime: startTimeDate,
+        endTime: endTimeDate,
+    };
+    if (data.startTime < Date.now()){
+        return next(
+            new ErrorHandler(
+                "Auction starting time must be greater than present time",
+                400
+            )
+        );
+    }
+
+    if (data.startTime >= data.endTime){
+        return next(
+            new ErrorHandler(
+                "Auction starting time must be less then ending time.",
+                400
+            )
+        );
+    }
+
+    data.bids = [];
+    data.commissionCalculated = false;
+   
+    auctionItem = await Auction.findByIdAndUpdate(id, data,{
+        new: true,
+        runValidators: true,
+        userFindAndModify: false,
+    });
+
+    const createdBy = await User.findByIdAndUpdate(req.user._id,{
+        unpaidCommissions: 0},
+    {
+    new: true,
+    runValidators: false,
+    userFindAndModify: false,
+    });
+    res.status(200).json({
+        success: true,
+        auctionItem,
+        message: `Auction republished and will be active on ${req.body.startTime}`,
+    });
+});

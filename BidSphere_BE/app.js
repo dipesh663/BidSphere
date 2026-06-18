@@ -7,6 +7,7 @@ import { config } from "dotenv";
 import { errorMiddleware } from "./middlewares/error.js";
 import userRoutes from "./router/userRoutes.js";
 import auctionItemRouter from "./router/auctionItemRoutes.js";
+import bidRouter from "./router/bidRoutes.js"
 
 const app = express();
 config({
@@ -32,6 +33,7 @@ app.use(fileUpload({
 
 app.use("/api/v1/users", userRoutes);
 app.use("/api/v1/auctionitem", auctionItemRouter);
+app.use("/api/v1/bid", bidRouter)
 
 connectDB();
 

@@ -52,8 +52,8 @@ export const endedAuctionCron = () => {
           \n\nPlease complete your payment using one of the following methods:\n\n1. **Bank Transfer**: 
           \n- Account Name: ${auctioneer.paymentMethods.bankTransfer.bankAccountName} 
           \n- Account Number: ${auctioneer.paymentMethods.bankTransfer.bankAccountNumber} 
-          \n- Bank: ${auctioneer.paymentMethods.bankTransfer.bankName}\n\n2. **Easypaise**:
-          \n- You can send payment via Easypaise: ${auctioneer.paymentMethods.easypaisa.easypaisaAccountNumber}
+          \n- Bank: ${auctioneer.paymentMethods.bankTransfer.bankName}\n\n2. **Khalti**:
+          \n- You can send payment via Khalti: ${auctioneer.paymentMethod.khalti.khaltiAccountNumber}
           \n\n3. **PayPal**:\n- Send payment to: ${auctioneer.paymentMethods.paypal.paypalEmail}
           \n\n4. **Cash on Delivery (COD)**:\n- If you prefer COD, you must pay 20% of the total amount upfront before delivery.
           \n- To pay the 20% upfront, use any of the above methods.\n- The remaining 80% will be paid upon delivery.

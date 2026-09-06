@@ -27,13 +27,13 @@ export const placeBid = catchAsyncErrors(async(req,res,next)=>{
             "bidder.id": req.user._id,
             auctionItem: auctionItem._id,
         });
-        const  existiongBidInAuction = auctionItem.bids.find(
+        const  existingBidInAuction = auctionItem.bids.find(
             (bid) => bid.userId.toString() == req.user._id.toString()
         );
-        if (existingBid && existiongBidInAuction){
-            existiongBidInAuction.amount = amount;
+        if (existingBid && existingBidInAuction){
+            existingBidInAuction.amount = amount;
             existingBid.amount = amount;
-            await existiongBidInAuction.save();
+            await existingBidInAuction.save();
             await existingBid.save();
             auctionItem.currentBid = amount;
         } else {

@@ -76,7 +76,7 @@ export const register = catchAsyncErrors(async(req, res, next) => {
                 bankAccountHolderName,
                 bankName
             },
-            eSewa: {
+            esewa: {
                 esewaAccountNumber
             },
             khalti: {

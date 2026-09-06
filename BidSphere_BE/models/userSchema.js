@@ -57,7 +57,7 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ["Auctioneer", "Bidder","SuperAdmin"],
     },
-    unpaidCommissions: {
+    unpaidCommission: {
         type: Number,
         default: 0,
     },

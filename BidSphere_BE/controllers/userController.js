@@ -18,29 +18,32 @@ export const register = catchAsyncErrors(async(req, res, next) => {
 
     const{
         userName,
-        email,password, phone, address, role, bankAccountnumber, bankAccountHolderName, bankName,
+        email,password, phone, address, role, bankAccountNumber, bankAccountHolderName, bankName,
         esewaAccountNumber, khaltiAccountNumber
     } = req.body;
 
     if(!userName || !email || !password || !role || !address){
-        return next(new ErrorHandler("please fill full form.", 400));
+        return next(new ErrorHandler("please fill user detail.", 400));
     }
     if(role === "Auctioneer"){
-        if(!bankAccountnumber || !bankAccountHolderName || !bankName){
+        console.log("Auctioneer" + bankAccountNumber);
+        console.log("Auctioneer" + bankAccountHolderName);
+        console.log("Auctioneer" + bankName);
+        if(!bankAccountNumber || !bankAccountHolderName || !bankName){
             return next(
-                new ErrorHandler("please fill full form.", 400)
+                new ErrorHandler("please fill bank detail.", 400)
             );       
         }
-    }
-    if(!esewaAccountNumber){
+        if(!esewaAccountNumber){
+                return next(
+                    new ErrorHandler("please provide your esewaAccountNumber.", 400)
+                );       
+        }
+        if(!khaltiAccountNumber){
             return next(
-                new ErrorHandler("please provide your esewaAccountNumber.", 400)
+                new ErrorHandler("please provide your khaltiAccountNumber.", 400)
             );       
-    }
-    if(!khaltiAccountNumber){
-        return next(
-            new ErrorHandler("please provide your khaltiAccountNumber.", 400)
-        );       
+        }
     }
 
     const isRegistered = await User.findOne({email});
@@ -69,7 +72,7 @@ export const register = catchAsyncErrors(async(req, res, next) => {
         },
         paymentMethod: {
             bankTransfer: {
-                bankAccountnumber,
+                bankAccountNumber,
                 bankAccountHolderName,
                 bankName
             },

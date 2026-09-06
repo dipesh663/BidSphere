@@ -51,9 +51,6 @@ const userSchema = new mongoose.Schema({
             khaltiAccountNumber: String,
             khaltiAccountHolderName: String,
         },
-        paypal:{
-            paypalEmail: String,
-        },
     },
 
     role: {

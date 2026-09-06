@@ -178,7 +178,7 @@ export const republishItem = catchAsyncErrors(async (req, res, next) =>{
     if (auctionItem.highestBidder){
         const highestBidder = await User.findById(auctionItem.highestBidder);
         highestBidder.moneySpent -= auctionItem.currentBid;
-        highestBidder.auctionsWon -= -1;
+        highestBidder.auctionsWon -= 1;
         highestBidder.save();
     }
 

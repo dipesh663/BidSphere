@@ -15,49 +15,49 @@ const router = express.Router();
 router.delete(
   "/auctionitem/delete/:id",
   isAuthenticated,
-  isAuthorized("Super Admin"),
+  isAuthorized("SuperAdmin"),
   deleteAuctionItem
 );
 
 router.get(
   "/paymentproofs/getall",
   isAuthenticated,
-  isAuthorized("Super Admin"),
+  isAuthorized("SuperAdmin"),
   getAllPaymentProofs
 );
 
 router.get(
   "/paymentproof/:id",
   isAuthenticated,
-  isAuthorized("Super Admin"),
+  isAuthorized("SuperAdmin"),
   getPaymentProofDetail
 );
 
 router.put(
   "/paymentproof/status/update/:id",
   isAuthenticated,
-  isAuthorized("Super Admin"),
+  isAuthorized("SuperAdmin"),
   updateProofStatus
 );
 
 router.delete(
   "/paymentproof/delete/:id",
   isAuthenticated,
-  isAuthorized("Super Admin"),
+  isAuthorized("SuperAdmin"),
   deletePaymentProof
 );
 
 router.get(
   "/users/getall",
   isAuthenticated,
-  isAuthorized("Super Admin"),
+  isAuthorized("SuperAdmin"),
   fetchAllUsers
 );
 
 router.get(
   "/monthlyincome",
   isAuthenticated,
-  isAuthorized("Super Admin"),
+  isAuthorized("SuperAdmin"),
   monthlyRevenue
 );
 

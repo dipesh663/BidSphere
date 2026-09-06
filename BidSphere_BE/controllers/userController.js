@@ -19,7 +19,7 @@ export const register = catchAsyncErrors(async(req, res, next) => {
     const{
         userName,
         email,password, phone, address, role, bankAccountnumber, bankAccountHolderName, bankName,
-        esewaAccountNumber, khaltiAccountNumber, paypalEmail
+        esewaAccountNumber, khaltiAccountNumber
     } = req.body;
 
     if(!userName || !email || !password || !role || !address){
@@ -37,9 +37,9 @@ export const register = catchAsyncErrors(async(req, res, next) => {
                 new ErrorHandler("please provide your esewaAccountNumber.", 400)
             );       
     }
-    if(!paypalEmail){
+    if(!khaltiAccountNumber){
         return next(
-            new ErrorHandler("please provide your paypalEmail.", 400)
+            new ErrorHandler("please provide your khaltiAccountNumber.", 400)
         );       
     }
 
@@ -78,9 +78,6 @@ export const register = catchAsyncErrors(async(req, res, next) => {
             },
             khalti: {
                 khaltiAccountNumber
-            },
-            paypal: {
-                paypalEmail
             },
         },
     });

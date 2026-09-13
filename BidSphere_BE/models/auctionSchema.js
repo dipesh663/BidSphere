@@ -52,13 +52,41 @@ const auctionSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    paymentStatus: {
+        type: String,
+        enum: ["unpaid", "pending", "paid"],
+        default: "unpaid",
+    },
+    paymentMethod: {
+        type: String,
+        enum: ["none", "esewa", "manual"],
+        default: "none",
+    },
+    paymentRef: String,
+    paymentTransactionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "EsewaTransaction",
+    },
 
     createdAt: {
         type: Date,
         default: Date.now
     },
+});
 
-
+auctionSchema.set("toJSON", {
+  virtuals: true,
+  transform(_doc, ret) {
+    if (!ret.paymentStatus) {
+      ret.paymentStatus = ret.bidderPaid ? "paid" : "unpaid";
+    }
+    ret.bidderPaid = ret.paymentStatus === "paid";
+    ret.bidderPaymentMethod =
+      ret.paymentMethod && ret.paymentMethod !== "none"
+        ? ret.paymentMethod
+        : ret.bidderPaymentMethod || "unpaid";
+    return ret;
+  },
 });
 
 export const Auction = mongoose.model('Auction', auctionSchema);

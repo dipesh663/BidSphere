@@ -38,6 +38,28 @@ const esewaTransactionSchema = new mongoose.Schema({
   completedAt: Date,
 });
 
+esewaTransactionSchema.index(
+  { auctionId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      purpose: "auction",
+      status: { $in: ["PENDING", "COMPLETE"] },
+    },
+  }
+);
+
+esewaTransactionSchema.index(
+  { userId: 1, purpose: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      purpose: "commission",
+      status: "PENDING",
+    },
+  }
+);
+
 export const EsewaTransaction = mongoose.model(
   "EsewaTransaction",
   esewaTransactionSchema

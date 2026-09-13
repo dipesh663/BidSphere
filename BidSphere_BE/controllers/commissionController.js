@@ -3,6 +3,7 @@ import ErrorHandler from "../middlewares/error.js";
 import { PaymentProof } from "../models/commissionProofSchema.js";
 import { User } from "../models/userSchema.js";
 import { Auction } from "../models/auctionSchema.js";
+import { EsewaTransaction } from "../models/esewaTransactionSchema.js";
 import { v2 as cloudinary } from "cloudinary";
 import mongoose from "mongoose";
 
@@ -38,6 +39,33 @@ export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {
     });
   }
 
+  const pendingEsewa = await EsewaTransaction.findOne({
+    userId: user._id,
+    purpose: "commission",
+    status: "PENDING",
+  });
+  if (pendingEsewa) {
+    return next(
+      new ErrorHandler(
+        "An eSewa commission payment is already pending for this account.",
+        400
+      )
+    );
+  }
+
+  const pendingProof = await PaymentProof.findOne({
+    userId: user._id,
+    status: { $in: ["Pending", "Approved"] },
+  });
+  if (pendingProof) {
+    return next(
+      new ErrorHandler(
+        "You already have a commission payment in review.",
+        400
+      )
+    );
+  }
+
   if (user.unpaidCommission < amount) {
     return next(
       new ErrorHandler(
@@ -67,6 +95,7 @@ export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {
   }
   const commissionProof = await PaymentProof.create({
     userId: req.user._id,
+    paymentMethod: "screenshot",
     proof: {
       public_id: cloudinaryResponse.public_id,
       url: cloudinaryResponse.secure_url,

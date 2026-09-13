@@ -19,36 +19,23 @@ import {
 
 const frontendUrl = () => process.env.FRONTEND_URL || "http://localhost:5173";
 
-const initiatePayment = async ({
-  userId,
-  purpose,
-  amount,
-  auctionId,
-  successPath,
-}) => {
+const formFromTransaction = (transaction) => {
   const { formUrl } = getEsewaConfig();
-  const transactionUuid = createTransactionUuid(
-    purpose === "auction" ? "BID" : "COM"
-  );
-
-  await EsewaTransaction.create({
-    userId,
-    purpose,
-    auctionId,
-    amount,
-    transactionUuid,
-    status: "PENDING",
-  });
-
   const formData = buildEsewaFormPayload({
-    amount,
-    transactionUuid,
-    successUrl: `${frontendUrl()}${successPath}`,
+    amount: transaction.amount,
+    transactionUuid: transaction.transactionUuid,
+    successUrl: `${frontendUrl()}/payment/esewa/success`,
     failureUrl: `${frontendUrl()}/payment/esewa/failure`,
   });
-
-  return { formUrl, formData, transactionUuid };
+  return {
+    formUrl,
+    formData,
+    transactionUuid: transaction.transactionUuid,
+  };
 };
+
+const isAuctionPaid = (auction) =>
+  auction.paymentStatus === "paid" || auction.bidderPaid === true;
 
 export const initiateAuctionPayment = catchAsyncErrors(async (req, res, next) => {
   const { auctionId } = req.body;
@@ -69,21 +56,65 @@ export const initiateAuctionPayment = catchAsyncErrors(async (req, res, next) =>
     return next(new ErrorHandler("Only the winning bidder can pay for this item.", 403));
   }
 
-  if (auction.bidderPaid) {
-    return next(new ErrorHandler("This auction has already been paid.", 400));
-  }
-
   if (!auction.currentBid || auction.currentBid <= 0) {
     return next(new ErrorHandler("Invalid auction amount.", 400));
   }
 
-  const { formUrl, formData, transactionUuid } = await initiatePayment({
-    userId: req.user._id,
-    purpose: "auction",
-    amount: auction.currentBid,
+  const completed = await EsewaTransaction.findOne({
     auctionId: auction._id,
-    successPath: "/payment/esewa/success",
+    purpose: "auction",
+    status: "COMPLETE",
   });
+
+  if (isAuctionPaid(auction) || completed) {
+    if (!isAuctionPaid(auction) && completed) {
+      auction.paymentStatus = "paid";
+      auction.paymentMethod = "esewa";
+      auction.paymentRef = completed.esewaRefId || completed.transactionCode;
+      auction.paymentTransactionId = completed._id;
+      await auction.save();
+    }
+    return next(new ErrorHandler("This auction has already been paid.", 400));
+  }
+
+  let transaction = await EsewaTransaction.findOne({
+    auctionId: auction._id,
+    purpose: "auction",
+    status: "PENDING",
+    userId: req.user._id,
+  });
+
+  if (!transaction) {
+    try {
+      transaction = await EsewaTransaction.create({
+        userId: req.user._id,
+        purpose: "auction",
+        auctionId: auction._id,
+        amount: auction.currentBid,
+        transactionUuid: createTransactionUuid("BID"),
+        status: "PENDING",
+      });
+    } catch (error) {
+      if (error.code !== 11000) {
+        return next(error);
+      }
+      transaction = await EsewaTransaction.findOne({
+        auctionId: auction._id,
+        purpose: "auction",
+        status: { $in: ["PENDING", "COMPLETE"] },
+      });
+      if (transaction?.status === "COMPLETE") {
+        return next(new ErrorHandler("This auction has already been paid.", 400));
+      }
+    }
+  }
+
+  auction.paymentStatus = "pending";
+  auction.paymentMethod = "esewa";
+  auction.paymentTransactionId = transaction._id;
+  await auction.save();
+
+  const { formUrl, formData, transactionUuid } = formFromTransaction(transaction);
 
   res.status(200).json({
     success: true,
@@ -91,6 +122,7 @@ export const initiateAuctionPayment = catchAsyncErrors(async (req, res, next) =>
     paymentUrl: formUrl,
     formData,
     transactionUuid,
+    paymentStatus: auction.paymentStatus,
   });
 });
 
@@ -102,6 +134,19 @@ export const initiateCommissionPayment = catchAsyncErrors(async (req, res, next)
 
   if (!user.unpaidCommission || user.unpaidCommission <= 0) {
     return next(new ErrorHandler("You don't have any unpaid commissions.", 400));
+  }
+
+  const pendingProof = await PaymentProof.findOne({
+    userId: user._id,
+    status: { $in: ["Pending", "Approved"] },
+  });
+  if (pendingProof) {
+    return next(
+      new ErrorHandler(
+        "You already have a commission payment in review. Wait until it is settled.",
+        400
+      )
+    );
   }
 
   const requestedAmount = req.body.amount
@@ -121,12 +166,29 @@ export const initiateCommissionPayment = catchAsyncErrors(async (req, res, next)
     );
   }
 
-  const { formUrl, formData, transactionUuid } = await initiatePayment({
-    userId: req.user._id,
+  let transaction = await EsewaTransaction.findOne({
+    userId: user._id,
     purpose: "commission",
-    amount: requestedAmount,
-    successPath: "/payment/esewa/success",
+    status: "PENDING",
   });
+
+  if (transaction && Math.abs(transaction.amount - requestedAmount) > 0.05) {
+    transaction.status = "CANCELED";
+    await transaction.save();
+    transaction = null;
+  }
+
+  if (!transaction) {
+    transaction = await EsewaTransaction.create({
+      userId: user._id,
+      purpose: "commission",
+      amount: requestedAmount,
+      transactionUuid: createTransactionUuid("COM"),
+      status: "PENDING",
+    });
+  }
+
+  const { formUrl, formData, transactionUuid } = formFromTransaction(transaction);
 
   res.status(200).json({
     success: true,
@@ -134,29 +196,51 @@ export const initiateCommissionPayment = catchAsyncErrors(async (req, res, next)
     paymentUrl: formUrl,
     formData,
     transactionUuid,
+    paymentStatus: "pending",
   });
 });
 
 const settleAuctionPayment = async (transaction, refId, transactionCode) => {
-  const auction = await Auction.findById(transaction.auctionId);
-  if (!auction) {
-    throw new Error("Auction not found for this payment.");
-  }
-  if (auction.bidderPaid) {
-    return auction;
-  }
+  const updated = await Auction.findOneAndUpdate(
+    {
+      _id: transaction.auctionId,
+      paymentStatus: { $ne: "paid" },
+    },
+    {
+      paymentStatus: "paid",
+      paymentMethod: "esewa",
+      paymentRef: refId || transactionCode,
+      paymentTransactionId: transaction._id,
+    },
+    { new: true }
+  );
 
-  auction.bidderPaid = true;
-  auction.bidderPaymentMethod = "esewa";
-  auction.bidderPaymentRef = refId || transactionCode;
-  await auction.save();
-  return auction;
+  if (updated) return updated;
+  return Auction.findById(transaction.auctionId);
 };
 
 const settleCommissionPayment = async (transaction, refId, transactionCode) => {
   const user = await User.findById(transaction.userId);
   if (!user) {
     throw new Error("User not found for this commission payment.");
+  }
+
+  try {
+    await PaymentProof.create({
+      userId: user._id,
+      paymentMethod: "esewa",
+      amount: transaction.amount,
+      comment: `Paid via eSewa. Ref: ${refId || transactionCode || transaction.transactionUuid}`,
+      status: "Settled",
+      transactionUuid: transaction.transactionUuid,
+      esewaRefId: refId || transactionCode,
+      esewaTransactionId: transaction._id,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return User.findById(transaction.userId);
+    }
+    throw error;
   }
 
   const deduct = Math.min(transaction.amount, user.unpaidCommission);
@@ -166,16 +250,6 @@ const settleCommissionPayment = async (transaction, refId, transactionCode) => {
   await Commission.create({
     amount: deduct,
     user: user._id,
-  });
-
-  await PaymentProof.create({
-    userId: user._id,
-    paymentMethod: "esewa",
-    amount: deduct,
-    comment: `Paid via eSewa. Ref: ${refId || transactionCode || transaction.transactionUuid}`,
-    status: "Settled",
-    transactionUuid: transaction.transactionUuid,
-    esewaRefId: refId || transactionCode,
   });
 
   return user;
@@ -196,23 +270,31 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
 
   const { secretKey, productCode } = getEsewaConfig();
   const signatureValid = verifyResponseSignature(decoded, secretKey);
-  const transaction = await EsewaTransaction.findOne({
+  const existing = await EsewaTransaction.findOne({
     transactionUuid: decoded.transaction_uuid,
   });
 
-  if (!transaction) {
+  if (!existing) {
     return next(new ErrorHandler("Payment record not found.", 404));
   }
 
-  if (String(transaction.userId) !== String(req.user._id)) {
+  if (String(existing.userId) !== String(req.user._id)) {
     return next(new ErrorHandler("You are not allowed to verify this payment.", 403));
   }
 
-  if (transaction.status === "COMPLETE") {
+  if (existing.status === "COMPLETE") {
+    if (existing.purpose === "auction") {
+      await settleAuctionPayment(
+        existing,
+        existing.esewaRefId,
+        existing.transactionCode
+      );
+    }
     return res.status(200).json({
       success: true,
       message: "Payment already verified.",
-      transaction,
+      transaction: existing,
+      paymentStatus: "paid",
     });
   }
 
@@ -220,8 +302,8 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
   try {
     statusResult = await checkEsewaStatus({
       productCode,
-      totalAmount: formatEsewaAmount(transaction.amount),
-      transactionUuid: transaction.transactionUuid,
+      totalAmount: formatEsewaAmount(existing.amount),
+      transactionUuid: existing.transactionUuid,
     });
   } catch (error) {
     return next(new ErrorHandler(error.message, 502));
@@ -231,9 +313,16 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
   const decodedAmount = parseEsewaAmount(decoded.total_amount);
 
   if (statusResult.status !== "COMPLETE") {
-    transaction.status =
+    const failedStatus =
       statusResult.status === "CANCELED" ? "CANCELED" : "FAILED";
-    await transaction.save();
+    existing.status = failedStatus;
+    await existing.save();
+    if (existing.purpose === "auction") {
+      await Auction.findOneAndUpdate(
+        { _id: existing.auctionId, paymentStatus: "pending" },
+        { paymentStatus: "unpaid", paymentTransactionId: null }
+      );
+    }
     return next(
       new ErrorHandler(
         `eSewa payment is not complete. Status: ${statusResult.status}`,
@@ -242,7 +331,7 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
     );
   }
 
-  if (Math.abs(statusAmount - transaction.amount) > 0.05) {
+  if (Math.abs(statusAmount - existing.amount) > 0.05) {
     return next(new ErrorHandler("Payment amount does not match our records.", 400));
   }
 
@@ -250,7 +339,7 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("eSewa callback status is not complete.", 400));
   }
 
-  if (decodedAmount && Math.abs(decodedAmount - transaction.amount) > 0.05) {
+  if (decodedAmount && Math.abs(decodedAmount - existing.amount) > 0.05) {
     return next(new ErrorHandler("Callback amount does not match our records.", 400));
   }
 
@@ -258,11 +347,26 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Could not verify eSewa payment signature.", 400));
   }
 
-  transaction.status = "COMPLETE";
-  transaction.esewaRefId = statusResult.ref_id;
-  transaction.transactionCode = decoded.transaction_code;
-  transaction.completedAt = new Date();
-  await transaction.save();
+  const transaction = await EsewaTransaction.findOneAndUpdate(
+    { _id: existing._id, status: "PENDING" },
+    {
+      status: "COMPLETE",
+      esewaRefId: statusResult.ref_id,
+      transactionCode: decoded.transaction_code,
+      completedAt: new Date(),
+    },
+    { new: true }
+  );
+
+  if (!transaction) {
+    const alreadyComplete = await EsewaTransaction.findById(existing._id);
+    return res.status(200).json({
+      success: true,
+      message: "Payment already verified.",
+      transaction: alreadyComplete,
+      paymentStatus: "paid",
+    });
+  }
 
   if (transaction.purpose === "auction") {
     await settleAuctionPayment(
@@ -287,6 +391,7 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
         ? "Auction payment verified successfully."
         : "Commission payment verified successfully.",
     transaction,
+    paymentStatus: "paid",
     user: updatedUser,
   });
 });
@@ -308,6 +413,12 @@ export const markEsewaFailure = catchAsyncErrors(async (req, res, next) => {
   if (transaction && transaction.status === "PENDING") {
     transaction.status = "FAILED";
     await transaction.save();
+    if (transaction.purpose === "auction") {
+      await Auction.findOneAndUpdate(
+        { _id: transaction.auctionId, paymentStatus: "pending" },
+        { paymentStatus: "unpaid", paymentTransactionId: null }
+      );
+    }
   }
 
   res.status(200).json({
@@ -320,6 +431,35 @@ export const getWonAuctions = catchAsyncErrors(async (req, res, next) => {
   const auctions = await Auction.find({
     highestBidder: req.user._id,
   }).sort({ createdAt: -1 });
+
+  const ids = auctions.map((auction) => auction._id);
+  const transactions = await EsewaTransaction.find({
+    auctionId: { $in: ids },
+    purpose: "auction",
+    status: { $in: ["PENDING", "COMPLETE"] },
+  });
+
+  const byAuction = new Map(
+    transactions.map((txn) => [String(txn.auctionId), txn])
+  );
+
+  for (const auction of auctions) {
+    const txn = byAuction.get(String(auction._id));
+    if (txn?.status === "COMPLETE" && auction.paymentStatus !== "paid") {
+      auction.paymentStatus = "paid";
+      auction.paymentMethod = "esewa";
+      auction.paymentRef = txn.esewaRefId || txn.transactionCode;
+      auction.paymentTransactionId = txn._id;
+      await auction.save();
+    } else if (txn?.status === "PENDING" && auction.paymentStatus !== "paid") {
+      if (auction.paymentStatus !== "pending") {
+        auction.paymentStatus = "pending";
+        auction.paymentMethod = "esewa";
+        auction.paymentTransactionId = txn._id;
+        await auction.save();
+      }
+    }
+  }
 
   res.status(200).json({
     success: true,

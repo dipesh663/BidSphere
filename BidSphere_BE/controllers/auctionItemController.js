@@ -1,6 +1,7 @@
 import { Auction} from '../models/auctionSchema.js';
 import { User } from '../models/userSchema.js';
 import { Bid } from '../models/bidSchema.js';
+import { EsewaTransaction } from '../models/esewaTransactionSchema.js';
 import { catchAsyncErrors } from '../middlewares/catchAsyncErrors.js';
 import ErrorHandler from '../middlewares/error.js';
 import {v2 as cloudinary} from 'cloudinary';
@@ -120,11 +121,47 @@ export const getAuctionDetails = catchAsyncErrors(async (req, res, next) => {
   if (!auctionItem) {
     return next(new ErrorHandler("Auction not found.", 404));
   }
+
+  const gatewayTxn = await EsewaTransaction.findOne({
+    auctionId: auctionItem._id,
+    purpose: "auction",
+    status: { $in: ["PENDING", "COMPLETE"] },
+  });
+  if (gatewayTxn?.status === "COMPLETE" && auctionItem.paymentStatus !== "paid") {
+    auctionItem.paymentStatus = "paid";
+    auctionItem.paymentMethod = "esewa";
+    auctionItem.paymentRef = gatewayTxn.esewaRefId || gatewayTxn.transactionCode;
+    auctionItem.paymentTransactionId = gatewayTxn._id;
+    await auctionItem.save();
+  } else if (
+    gatewayTxn?.status === "PENDING" &&
+    auctionItem.paymentStatus !== "paid" &&
+    auctionItem.paymentStatus !== "pending"
+  ) {
+    auctionItem.paymentStatus = "pending";
+    auctionItem.paymentMethod = "esewa";
+    auctionItem.paymentTransactionId = gatewayTxn._id;
+    await auctionItem.save();
+  }
+
   const bidders = auctionItem.bids.sort((a, b) => b.amount - a.amount);
+
+  let auctioneerPaymentInfo = null;
+  const isWinner =
+    auctionItem.highestBidder &&
+    String(auctionItem.highestBidder) === String(req.user._id);
+  if (isWinner) {
+    const auctioneer = await User.findById(auctionItem.createdBy).select(
+      "userName email paymentMethod"
+    );
+    auctioneerPaymentInfo = auctioneer;
+  }
+
   res.status(200).json({
     success: true,
     auctionItem,
     bidders,
+    auctioneerPaymentInfo,
   });
 });
 
@@ -203,6 +240,18 @@ export const republishItem = catchAsyncErrors(async (req, res, next) => {
   data.commissionCalculated = false;
   data.currentBid = 0;
   data.highestBidder = null;
+  data.paymentStatus = "unpaid";
+  data.paymentMethod = "none";
+  data.paymentRef = null;
+  data.paymentTransactionId = null;
+  await EsewaTransaction.updateMany(
+    {
+      auctionId: id,
+      purpose: "auction",
+      status: { $in: ["PENDING", "COMPLETE"] },
+    },
+    { status: "CANCELED" }
+  );
   auctionItem = await Auction.findByIdAndUpdate(id, data, {
     new: true,
     runValidators: true,

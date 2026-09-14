@@ -68,7 +68,7 @@ export const parseEsewaAmount = (value) => {
 
 export const createTransactionUuid = (prefix) => {
   const stamp = Date.now();
-  const random = Math.floor(Math.random() * 100000);
+  const random = Math.floor(100000 + Math.random() * 900000);
   return `${prefix}-${stamp}-${random}`;
 };
 

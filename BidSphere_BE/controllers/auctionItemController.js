@@ -1,10 +1,11 @@
-import { Auction} from '../models/auctionSchema.js';
+import { Auction } from '../models/auctionSchema.js';
 import { User } from '../models/userSchema.js';
 import { Bid } from '../models/bidSchema.js';
 import { EsewaTransaction } from '../models/esewaTransactionSchema.js';
+import { applyCommissionOnAuctionPayment } from './commissionController.js';
 import { catchAsyncErrors } from '../middlewares/catchAsyncErrors.js';
 import ErrorHandler from '../middlewares/error.js';
-import {v2 as cloudinary} from 'cloudinary';
+import { v2 as cloudinary } from 'cloudinary';
 import mongoose from 'mongoose';
 
 export const addNewAuctionItem = catchAsyncErrors(async (req, res, next) => {
@@ -55,11 +56,13 @@ export const addNewAuctionItem = catchAsyncErrors(async (req, res, next) => {
       )
     );
   }
-  const alreadyOneAuctionActive = await Auction.find({
+  const auctionsByAuctioneer = await Auction.find({
     createdBy: req.user._id,
-    endTime: { $gt: Date.now() },
-  });
-  if (alreadyOneAuctionActive.length > 0) {
+  }).select("endTime");
+  const hasActiveAuction = auctionsByAuctioneer.some(
+    (auction) => auction.endTime && new Date(auction.endTime).getTime() > Date.now()
+  );
+  if (hasActiveAuction) {
     return next(new ErrorHandler("You already have one active auction.", 400));
   }
   try {
@@ -133,6 +136,9 @@ export const getAuctionDetails = catchAsyncErrors(async (req, res, next) => {
     auctionItem.paymentRef = gatewayTxn.esewaRefId || gatewayTxn.transactionCode;
     auctionItem.paymentTransactionId = gatewayTxn._id;
     await auctionItem.save();
+    await applyCommissionOnAuctionPayment(auctionItem._id);
+  } else if (auctionItem.paymentStatus === "paid" && !auctionItem.commissionCalculated) {
+    await applyCommissionOnAuctionPayment(auctionItem._id);
   } else if (
     gatewayTxn?.status === "PENDING" &&
     auctionItem.paymentStatus !== "paid" &&
@@ -182,6 +188,14 @@ export const removeFromAuction = catchAsyncErrors(async (req, res, next) => {
   if (!auctionItem) {
     return next(new ErrorHandler("Auction not found.", 404));
   }
+  if (auctionItem.paymentStatus === "paid" || auctionItem.bidderPaid) {
+    return next(
+      new ErrorHandler(
+        "This auction item has already been paid for by the winning bidder and cannot be deleted.",
+        400
+      )
+    );
+  }
   await auctionItem.deleteOne();
   res.status(200).json({
     success: true,
@@ -197,6 +211,14 @@ export const republishItem = catchAsyncErrors(async (req, res, next) => {
   let auctionItem = await Auction.findById(id);
   if (!auctionItem) {
     return next(new ErrorHandler("Auction not found.", 404));
+  }
+  if (auctionItem.paymentStatus === "paid" || auctionItem.bidderPaid) {
+    return next(
+      new ErrorHandler(
+        "This auction item has already been paid for by the winning bidder and cannot be republished.",
+        400
+      )
+    );
   }
   if (!req.body.startTime || !req.body.endTime) {
     return next(

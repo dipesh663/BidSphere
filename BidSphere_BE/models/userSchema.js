@@ -8,12 +8,18 @@ const userSchema = new mongoose.Schema({
         minlength: [3, "Username must be at least 3 characters long"],
         maxlength: [30, "Username must be less than 30 characters long"],
     },
-    password:{
+    password: {
         type: String,
-        selected: false,
-        minlength: [8, "Password must contain at least 8 characters."],
-        maxlength: [20, "Password connot exceed 20 characters."],
-
+        select: false,
+        validate: {
+            validator: function (value) {
+                if (!this.isModified("password")) {
+                    return true;
+                }
+                return typeof value === "string" && value.length >= 8 && value.length <= 20;
+            },
+            message: "Password must contain between 8 and 20 characters.",
+        },
     },
     email: {
         type: String,
@@ -24,7 +30,7 @@ const userSchema = new mongoose.Schema({
     phone:{
         type: String, 
         minlength: [10, "Phone number must contain 10 digits."],
-        maxlength: [10, "Phone number connot exceed 10 digits."],
+        maxlength: [10, "Phone number cannot exceed 10 digits."],
     },
     profileImage: {
         public_id:{
@@ -77,9 +83,10 @@ const userSchema = new mongoose.Schema({
 
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")){
-        next();
+        return next();
     }
     this.password = await bcrypt.hash(this.password, 10);
+    next();
 });
 
 userSchema.methods.comparePassword = async function (enteredPassword){

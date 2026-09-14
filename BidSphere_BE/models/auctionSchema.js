@@ -52,6 +52,10 @@ const auctionSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    endedHandled: {
+        type: Boolean,
+        default: false
+    },
     paymentStatus: {
         type: String,
         enum: ["unpaid", "pending", "paid"],

@@ -8,14 +8,59 @@ import { v2 as cloudinary } from "cloudinary";
 import mongoose from "mongoose";
 
 export const calculateCommission = async (auctionId) => {
-  const auction = await Auction.findById(auctionId);
   if (!mongoose.Types.ObjectId.isValid(auctionId)) {
-    return next(new ErrorHandler("Invalid Auction Id format.", 400));
+    throw new Error("Invalid Auction Id format.");
   }
-  //alg
+  const auction = await Auction.findById(auctionId);
+  if (!auction) {
+    throw new Error("Auction not found.");
+  }
   const commissionRate = 0.05;
-  const commission = auction.currentBid * commissionRate;
+  const commission = (auction.currentBid || 0) * commissionRate;
   return commission;
+};
+
+export const applyCommissionOnAuctionPayment = async (auctionId) => {
+  if (!mongoose.Types.ObjectId.isValid(auctionId)) {
+    return null;
+  }
+  const auction = await Auction.findById(auctionId);
+  if (!auction) return null;
+
+  if (auction.commissionCalculated) {
+    return auction;
+  }
+
+  const commissionAmount = await calculateCommission(auction._id);
+  auction.commissionCalculated = true;
+  await auction.save();
+
+  if (auction.createdBy) {
+    await User.findByIdAndUpdate(
+      auction.createdBy,
+      {
+        $inc: {
+          unpaidCommission: commissionAmount,
+        },
+      },
+      { new: true }
+    );
+  }
+
+  if (auction.highestBidder && auction.currentBid > 0) {
+    await User.findByIdAndUpdate(
+      auction.highestBidder,
+      {
+        $inc: {
+          moneySpent: auction.currentBid,
+        },
+      },
+      { new: true }
+    );
+  }
+
+  console.log(`Commission of ${commissionAmount} applied for auction ${auction._id} upon payment.`);
+  return auction;
 };
 
 export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {

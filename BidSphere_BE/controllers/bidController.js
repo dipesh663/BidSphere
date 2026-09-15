@@ -55,7 +55,7 @@ export const placeBid = catchAsyncErrors(async (req, res, next) => {
 
     // ── Auction active guard ──────────────────────────────────────────────────
     // Use dynamicEndTime if countdown is active, otherwise use original endTime
-    const effectiveEnd = auctionItem.countdownActive && auctionItem.dynamicEndTime
+    const effectiveEnd = auctionItem.countdownActive && auctionItem.dynamicEndTime && auctionItem.bids?.length > 0
         ? auctionItem.dynamicEndTime
         : new Date(auctionItem.endTime);
 

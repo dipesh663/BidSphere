@@ -90,6 +90,19 @@ const auctionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: "EsewaTransaction",
     },
+    postPaymentAction: {
+        type: String,
+        enum: ["none", "delete", "republish"],
+        default: "none",
+    },
+    paymentDeadline: {
+        type: Date,
+        default: null,
+    },
+    postPaymentActionNotifiedAt: {
+        type: Date,
+        default: null,
+    },
 
     createdAt: {
         type: Date,

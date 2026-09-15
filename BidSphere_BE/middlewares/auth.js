@@ -1,11 +1,11 @@
 import { User } from "../models/userSchema.js";
 import jwt from "jsonwebtoken";
 import ErrorHandler from "./error.js";
-import {catchAsyncErrors} from "./catchAsyncErrors.js";
+import { catchAsyncErrors } from "./catchAsyncErrors.js";
 
-export const isAuthenticated = catchAsyncErrors(async(req, res, next) => {
+export const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
     const token = req.cookies.token;
-    if(!token){
+    if (!token) {
         return next(new ErrorHandler("User not authenticated.", 401));
     }
 
@@ -14,12 +14,12 @@ export const isAuthenticated = catchAsyncErrors(async(req, res, next) => {
     next();
 });
 
-export const isAuthorized = (...roles) =>{
-    return(req, res, next)=>{
-        if(!roles.includes(req.user.role)){
+export const isAuthorized = (...roles) => {
+    return (req, res, next) => {
+        if (!roles.includes(req.user.role)) {
             return next(
                 new ErrorHandler(
-                    `${req.user.role}is not allowed to access this resources.` ,
+                    `${req.user.role}is not allowed to access this resources.`,
                     403
                 )
             );

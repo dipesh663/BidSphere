@@ -1,5 +1,5 @@
-import {addNewAuctionItem, getAllItems, getMyAuctionItems, getAuctionDetails, removeFromAuction, republishItem} from '../controllers/auctionItemController.js';
-import {isAuthenticated, isAuthorized} from '../middlewares/auth.js';
+import { addNewAuctionItem, getAllItems, getMyAuctionItems, getAuctionDetails, removeFromAuction, republishItem, choosePostPaymentAction } from '../controllers/auctionItemController.js';
+import { isAuthenticated, isAuthorized } from '../middlewares/auth.js';
 import express from 'express';
 import { trackCommissionStatus } from '../middlewares/trackCommissionStatus.js';
 
@@ -17,6 +17,8 @@ router.delete("/delete/:id",
     isAuthenticated, isAuthorized("Auctioneer"), removeFromAuction
 );
 
-router.put("/item/republish/:id", isAuthenticated, isAuthorized("Auctioneer"),republishItem);
+router.put("/item/post-payment-action/:id", isAuthenticated, isAuthorized("Auctioneer"), choosePostPaymentAction);
+
+router.put("/item/republish/:id", isAuthenticated, isAuthorized("Auctioneer"), republishItem);
 
 export default router;

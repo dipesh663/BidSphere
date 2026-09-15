@@ -58,7 +58,8 @@ export const endedAuctionCron = () => {
     // ── 1. Auctions ended by original endTime (no bids / countdown inactive) ──
     const fixedEndedAuctions = await Auction.find({
       endTime: { $lt: now },
-      countdownActive: { $ne: true },   // not in countdown mode
+      // A countdown is valid only when at least one bid still exists.
+      $or: [{ countdownActive: { $ne: true } }, { "bids.0": { $exists: false } }],
       endedHandled: { $ne: true },
       commissionCalculated: { $ne: true },
     });
@@ -77,9 +78,8 @@ export const endedAuctionCron = () => {
     // ── 2. Auctions ended by dynamic countdown ────────────────────────────
     const countdownEndedAuctions = await Auction.find({
       countdownActive: true,
-      // A republished auction has no bids. This also protects auctions
-      // republished before this fix from an old countdown value.
-      currentBid: { $gt: 0 },
+      // Do not let a stale countdown end an auction with no bid records.
+      "bids.0": { $exists: true },
       dynamicEndTime: { $lt: now },
       endedHandled: { $ne: true },
       commissionCalculated: { $ne: true },

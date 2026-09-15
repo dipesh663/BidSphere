@@ -57,6 +57,10 @@ export const initiateAuctionPayment = catchAsyncErrors(async (req, res, next) =>
     return next(new ErrorHandler("Only the winning bidder can pay for this item.", 403));
   }
 
+  if (auction.paymentDeadline && new Date(auction.paymentDeadline) <= new Date()) {
+    return next(new ErrorHandler("The 7-day payment deadline has expired.", 400));
+  }
+
   if (!auction.currentBid || auction.currentBid <= 0) {
     return next(new ErrorHandler("Invalid auction amount.", 400));
   }

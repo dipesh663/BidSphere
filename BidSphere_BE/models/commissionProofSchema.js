@@ -9,12 +9,23 @@ const paymentProofSchema = new mongoose.Schema({
   proof: {
     public_id: {
       type: String,
-      required: true,
     },
     url: {
       type: String,
-      required: true,
     },
+  },
+  paymentMethod: {
+    type: String,
+    enum: ["screenshot", "esewa"],
+    default: "screenshot",
+  },
+  transactionUuid: String,
+  esewaRefId: String,
+  esewaTransactionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "EsewaTransaction",
+    unique: true,
+    sparse: true,
   },
   uploadedAt: {
     type: Date,

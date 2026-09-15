@@ -8,26 +8,42 @@ const userSchema = new mongoose.Schema({
         minlength: [3, "Username must be at least 3 characters long"],
         maxlength: [30, "Username must be less than 30 characters long"],
     },
-    password:{
-        type: String,
-        selected: false,
-        minlength: [8, "Password must contain at least 8 characters."],
-        maxlength: [20, "Password connot exceed 20 characters."],
 
+    password: {
+        type: String,
+        select: false,
+        validate: {
+            validator: function (value) {
+                if (!this.isModified("password")) {
+                    return true;
+                }
+
+                return (
+                    typeof value === "string" &&
+                    value.length >= 8 &&
+                    value.length <= 20
+                );
+            },
+            message: "Password must contain between 8 and 20 characters.",
+        },
     },
+
     email: {
         type: String,
         required: true,
         unique: true,
     },
+
     address: String,
-    phone:{
-        type: String, 
+
+    phone: {
+        type: String,
         minlength: [10, "Phone number must contain 10 digits."],
-        maxlength: [10, "Phone number connot exceed 10 digits."],
+        maxlength: [10, "Phone number cannot exceed 10 digits."],
     },
+
     profileImage: {
-        public_id:{
+        public_id: {
             type: String,
             required: true,
         },
@@ -43,11 +59,13 @@ const userSchema = new mongoose.Schema({
             bankName: String,
             bankAccountHolderName: String,
         },
-        esewa:{
+
+        esewa: {
             esewaAccountNumber: String,
             esewaAccountHolderName: String,
         },
-        khalti:{
+
+        khalti: {
             khaltiAccountNumber: String,
             khaltiAccountHolderName: String,
         },
@@ -55,42 +73,74 @@ const userSchema = new mongoose.Schema({
 
     role: {
         type: String,
-        enum: ["Auctioneer", "Bidder","SuperAdmin"],
+        enum: ["Auctioneer", "Bidder", "SuperAdmin"],
     },
+
     unpaidCommission: {
         type: Number,
         default: 0,
     },
+
     auctionsWon: {
         type: Number,
         default: 0,
     },
+
     moneySpent: {
         type: Number,
         default: 0,
     },
+
     createdAt: {
         type: Date,
         default: Date.now,
     },
 });
 
-userSchema.pre("save", async function (next) {
-    if (!this.isModified("password")){
-        next();
+
+// ======================================================
+// Password Hash Middleware
+// ======================================================
+
+userSchema.pre("save", async function () {
+    // Don't hash the password again if it hasn't changed
+    if (!this.isModified("password")) {
+        return;
     }
+
     this.password = await bcrypt.hash(this.password, 10);
 });
 
-userSchema.methods.comparePassword = async function (enteredPassword){
+
+// ======================================================
+// Compare Password
+// ======================================================
+
+userSchema.methods.comparePassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
-userSchema.methods.generateToken = function (){
-    return jwt.sign({id: this._id}, process.env.JWT_SECRET_KEY, {
-        expiresIn: process.env.JWT_EXPIRES_IN,
-    });
+
+// ======================================================
+// Generate JWT Token
+// ======================================================
+
+userSchema.methods.generateToken = function () {
+    return jwt.sign(
+        {
+            id: this._id,
+        },
+        process.env.JWT_SECRET_KEY,
+        {
+            expiresIn: process.env.JWT_EXPIRES_IN,
+        }
+    );
 };
+
+
+// ======================================================
+// Export User Model
+// ======================================================
 
 export const User = mongoose.model("User", userSchema);
 

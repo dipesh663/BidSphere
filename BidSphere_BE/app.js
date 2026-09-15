@@ -10,6 +10,7 @@ import auctionItemRouter from "./router/auctionItemRoutes.js";
 import bidRouter from "./router/bidRoutes.js"
 import commissionRouter from "./router/commissionRouter.js";
 import superAdminRouter  from "./router/superAdminRoutes.js";
+import esewaRouter from "./router/esewaRoutes.js";
 import { endedAuctionCron } from "./automation/endedAuctionCron.js"
 import { verifyCommissionCron } from "./automation/verifyCommissionCron.js"
 
@@ -40,6 +41,7 @@ app.use("/api/v1/auctionitem", auctionItemRouter);
 app.use("/api/v1/bid", bidRouter);
 app.use("/api/v1/commission", commissionRouter);
 app.use("/api/v1/superadmin", superAdminRouter);
+app.use("/api/v1/esewa", esewaRouter);
 
 endedAuctionCron();
 verifyCommissionCron();

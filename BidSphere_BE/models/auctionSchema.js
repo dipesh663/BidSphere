@@ -5,7 +5,7 @@ const auctionSchema = new mongoose.Schema({
     description: String,
     startingBid: Number,
     category: String,
-    condition:{
+    condition: {
         type: String,
         enum: ['New', 'Used'],
     },
@@ -33,13 +33,17 @@ const auctionSchema = new mongoose.Schema({
     },
     bids: [
         {
-            userId:{
+            userId: {
                 type: mongoose.Schema.Types.ObjectId,
                 ref: 'Bid',
             },
             userName: String,
             amount: Number,
-            profileImage: String
+            profileImage: String,
+            time: {
+                type: Date,
+                default: Date.now
+            }
         }
     ],
 
@@ -52,13 +56,60 @@ const auctionSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
+    endedHandled: {
+        type: Boolean,
+        default: false
+    },
+
+    // Dynamic countdown fields — activated after first bid
+    countdownActive: {
+        type: Boolean,
+        default: false,
+    },
+    countdownStep: {
+        // 0 = 60s, 1 = 40s, 2 = 20s, 3+ = 10s
+        type: Number,
+        default: 0,
+    },
+    dynamicEndTime: {
+        type: Date,
+        default: null,
+    },
+    paymentStatus: {
+        type: String,
+        enum: ["unpaid", "pending", "paid"],
+        default: "unpaid",
+    },
+    paymentMethod: {
+        type: String,
+        enum: ["none", "esewa", "manual"],
+        default: "none",
+    },
+    paymentRef: String,
+    paymentTransactionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "EsewaTransaction",
+    },
 
     createdAt: {
         type: Date,
         default: Date.now
     },
+});
 
-
+auctionSchema.set("toJSON", {
+    virtuals: true,
+    transform(_doc, ret) {
+        if (!ret.paymentStatus) {
+            ret.paymentStatus = ret.bidderPaid ? "paid" : "unpaid";
+        }
+        ret.bidderPaid = ret.paymentStatus === "paid";
+        ret.bidderPaymentMethod =
+            ret.paymentMethod && ret.paymentMethod !== "none"
+                ? ret.paymentMethod
+                : ret.bidderPaymentMethod || "unpaid";
+        return ret;
+    },
 });
 
 export const Auction = mongoose.model('Auction', auctionSchema);

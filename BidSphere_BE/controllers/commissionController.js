@@ -3,18 +3,64 @@ import ErrorHandler from "../middlewares/error.js";
 import { PaymentProof } from "../models/commissionProofSchema.js";
 import { User } from "../models/userSchema.js";
 import { Auction } from "../models/auctionSchema.js";
+import { EsewaTransaction } from "../models/esewaTransactionSchema.js";
 import { v2 as cloudinary } from "cloudinary";
 import mongoose from "mongoose";
 
 export const calculateCommission = async (auctionId) => {
-  const auction = await Auction.findById(auctionId);
   if (!mongoose.Types.ObjectId.isValid(auctionId)) {
-    return next(new ErrorHandler("Invalid Auction Id format.", 400));
+    throw new Error("Invalid Auction Id format.");
   }
-  //alg
+  const auction = await Auction.findById(auctionId);
+  if (!auction) {
+    throw new Error("Auction not found.");
+  }
   const commissionRate = 0.05;
-  const commission = auction.currentBid * commissionRate;
+  const commission = (auction.currentBid || 0) * commissionRate;
   return commission;
+};
+
+export const applyCommissionOnAuctionPayment = async (auctionId) => {
+  if (!mongoose.Types.ObjectId.isValid(auctionId)) {
+    return null;
+  }
+  const auction = await Auction.findById(auctionId);
+  if (!auction) return null;
+
+  if (auction.commissionCalculated) {
+    return auction;
+  }
+
+  const commissionAmount = await calculateCommission(auction._id);
+  auction.commissionCalculated = true;
+  await auction.save();
+
+  if (auction.createdBy) {
+    await User.findByIdAndUpdate(
+      auction.createdBy,
+      {
+        $inc: {
+          unpaidCommission: commissionAmount,
+        },
+      },
+      { new: true }
+    );
+  }
+
+  if (auction.highestBidder && auction.currentBid > 0) {
+    await User.findByIdAndUpdate(
+      auction.highestBidder,
+      {
+        $inc: {
+          moneySpent: auction.currentBid,
+        },
+      },
+      { new: true }
+    );
+  }
+
+  console.log(`Commission of ${commissionAmount} applied for auction ${auction._id} upon payment.`);
+  return auction;
 };
 
 export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {
@@ -36,6 +82,33 @@ export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {
       success: true,
       message: "You don't have any unpaid commissions.",
     });
+  }
+
+  const pendingEsewa = await EsewaTransaction.findOne({
+    userId: user._id,
+    purpose: "commission",
+    status: "PENDING",
+  });
+  if (pendingEsewa) {
+    return next(
+      new ErrorHandler(
+        "An eSewa commission payment is already pending for this account.",
+        400
+      )
+    );
+  }
+
+  const pendingProof = await PaymentProof.findOne({
+    userId: user._id,
+    status: { $in: ["Pending", "Approved"] },
+  });
+  if (pendingProof) {
+    return next(
+      new ErrorHandler(
+        "You already have a commission payment in review.",
+        400
+      )
+    );
   }
 
   if (user.unpaidCommission < amount) {
@@ -67,6 +140,7 @@ export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {
   }
   const commissionProof = await PaymentProof.create({
     userId: req.user._id,
+    paymentMethod: "screenshot",
     proof: {
       public_id: cloudinaryResponse.public_id,
       url: cloudinaryResponse.secure_url,
@@ -79,5 +153,21 @@ export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {
     message:
       "Your proof has been submitted successfully. We will review it and responed to you within 24 hours.",
     commissionProof,
+  });
+});
+
+// Auctioneers can inspect only their own commission proofs and eSewa records.
+export const getMyCommissionPaymentDetails = catchAsyncErrors(async (req, res) => {
+  const [proofs, transactions, user] = await Promise.all([
+    PaymentProof.find({ userId: req.user._id }).sort({ uploadedAt: -1 }),
+    EsewaTransaction.find({ userId: req.user._id, purpose: "commission" }).sort({ createdAt: -1 }),
+    User.findById(req.user._id).select("unpaidCommission"),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    proofs,
+    transactions,
+    unpaidCommission: user?.unpaidCommission || 0,
   });
 });

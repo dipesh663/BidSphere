@@ -155,3 +155,19 @@ export const proofOfCommission = catchAsyncErrors(async (req, res, next) => {
     commissionProof,
   });
 });
+
+// Auctioneers can inspect only their own commission proofs and eSewa records.
+export const getMyCommissionPaymentDetails = catchAsyncErrors(async (req, res) => {
+  const [proofs, transactions, user] = await Promise.all([
+    PaymentProof.find({ userId: req.user._id }).sort({ uploadedAt: -1 }),
+    EsewaTransaction.find({ userId: req.user._id, purpose: "commission" }).sort({ createdAt: -1 }),
+    User.findById(req.user._id).select("unpaidCommission"),
+  ]);
+
+  res.status(200).json({
+    success: true,
+    proofs,
+    transactions,
+    unpaidCommission: user?.unpaidCommission || 0,
+  });
+});

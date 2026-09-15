@@ -2,6 +2,7 @@ import express from "express";
 import { isAuthenticated, isAuthorized } from "../middlewares/auth.js";
 import {
   getWonAuctions,
+  getBidderPaymentDetails,
   initiateAuctionPayment,
   initiateCommissionPayment,
   markEsewaFailure,
@@ -31,6 +32,12 @@ router.get(
   isAuthenticated,
   isAuthorized("Bidder"),
   getWonAuctions
+);
+router.get(
+  "/payment-details",
+  isAuthenticated,
+  isAuthorized("Bidder"),
+  getBidderPaymentDetails
 );
 
 export default router;

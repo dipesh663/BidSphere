@@ -260,6 +260,13 @@ export const republishItem = catchAsyncErrors(async (req, res, next) => {
 
   data.bids = [];
   data.commissionCalculated = false;
+  // A republished auction is a new bidding cycle.  Leaving the previous
+  // dynamic countdown in place makes clients use its already-expired value
+  // instead of the new endTime.
+  data.endedHandled = false;
+  data.countdownActive = false;
+  data.countdownStep = 0;
+  data.dynamicEndTime = null;
   data.currentBid = 0;
   data.highestBidder = null;
   data.paymentStatus = "unpaid";

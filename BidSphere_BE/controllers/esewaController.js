@@ -511,3 +511,16 @@ export const getWonAuctions = catchAsyncErrors(async (req, res, next) => {
     auctions,
   });
 });
+
+// Payment records are scoped to the authenticated bidder so a bidder can
+// review their own proof/reference without seeing anyone else's payments.
+export const getBidderPaymentDetails = catchAsyncErrors(async (req, res) => {
+  const payments = await EsewaTransaction.find({
+    userId: req.user._id,
+    purpose: "auction",
+  })
+    .populate("auctionId", "title image currentBid paymentStatus paymentMethod")
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({ success: true, payments });
+});

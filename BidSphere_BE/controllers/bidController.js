@@ -43,10 +43,10 @@ export const placeBid = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Auction Item not found.", 404));
     }
 
-    // ── Role guard: Auctioneers cannot place bids ─────────────────────────
-    if (req.user.role === "Auctioneer") {
+    // ── Role guard: only bidders can place bids ───────────────────────────
+    if (req.user.role !== "Bidder") {
         return next(new ErrorHandler(
-            "Auctioneers are not allowed to place bids. Only Bidders can participate in auctions.",
+            "Only Bidders can place bids.",
             403
         ));
     }
@@ -55,7 +55,7 @@ export const placeBid = catchAsyncErrors(async (req, res, next) => {
 
     // ── Auction active guard ──────────────────────────────────────────────────
     // Use dynamicEndTime if countdown is active, otherwise use original endTime
-    const effectiveEnd = auctionItem.countdownActive && auctionItem.dynamicEndTime
+    const effectiveEnd = auctionItem.countdownActive && auctionItem.dynamicEndTime && auctionItem.bids?.length > 0
         ? auctionItem.dynamicEndTime
         : new Date(auctionItem.endTime);
 
@@ -101,6 +101,20 @@ export const placeBid = catchAsyncErrors(async (req, res, next) => {
         const existingBidInAuction = auctionItem.bids.find(
             (bid) => bid.userId.toString() === req.user._id.toString()
         );
+
+        // A bidder must wait until another bidder takes the lead before bidding again.
+        const isCurrentHighestBidder = auctionItem.bids.some(
+            (bid) =>
+                bid.userId.toString() === req.user._id.toString() &&
+                Number(bid.amount) === Number(auctionItem.currentBid)
+        );
+        if (isCurrentHighestBidder) {
+            return next(new ErrorHandler(
+                "You are currently the highest bidder. Wait for another bidder to bid higher.",
+                400
+            ));
+        }
+
         const bidTime = new Date();
 
         if (existingBid && existingBidInAuction) {

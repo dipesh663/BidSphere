@@ -8,7 +8,6 @@ const userSchema = new mongoose.Schema({
         minlength: [3, "Username must be at least 3 characters long"],
         maxlength: [30, "Username must be less than 30 characters long"],
     },
-
     password: {
         type: String,
         select: false,
@@ -17,31 +16,22 @@ const userSchema = new mongoose.Schema({
                 if (!this.isModified("password")) {
                     return true;
                 }
-
-                return (
-                    typeof value === "string" &&
-                    value.length >= 8 &&
-                    value.length <= 20
-                );
+                return typeof value === "string" && value.length >= 8 && value.length <= 20;
             },
             message: "Password must contain between 8 and 20 characters.",
         },
     },
-
     email: {
         type: String,
         required: true,
         unique: true,
     },
-
     address: String,
-
     phone: {
         type: String,
         minlength: [10, "Phone number must contain 10 digits."],
         maxlength: [10, "Phone number cannot exceed 10 digits."],
     },
-
     profileImage: {
         public_id: {
             type: String,
@@ -54,20 +44,9 @@ const userSchema = new mongoose.Schema({
     },
 
     paymentMethod: {
-        bankTransfer: {
-            bankAccountNumber: String,
-            bankName: String,
-            bankAccountHolderName: String,
-        },
-
         esewa: {
             esewaAccountNumber: String,
             esewaAccountHolderName: String,
-        },
-
-        khalti: {
-            khaltiAccountNumber: String,
-            khaltiAccountHolderName: String,
         },
     },
 
@@ -75,72 +54,69 @@ const userSchema = new mongoose.Schema({
         type: String,
         enum: ["Auctioneer", "Bidder", "SuperAdmin"],
     },
-
+    isBlocked: {
+        type: Boolean,
+        default: false,
+    },
+    blockReason: {
+        type: String,
+        default: "",
+    },
+    isDeleted: {
+        type: Boolean,
+        default: false,
+    },
+    deletionReason: {
+        type: String,
+        default: "",
+    },
+    moderationHistory: [
+        {
+            action: {
+                type: String,
+                enum: ["block", "delete"],
+            },
+            reason: String,
+            createdAt: {
+                type: Date,
+                default: Date.now,
+            },
+        },
+    ],
     unpaidCommission: {
         type: Number,
         default: 0,
     },
-
     auctionsWon: {
         type: Number,
         default: 0,
     },
-
     moneySpent: {
         type: Number,
         default: 0,
     },
-
     createdAt: {
         type: Date,
         default: Date.now,
     },
 });
 
-
-// ======================================================
-// Password Hash Middleware
-// ======================================================
-
 userSchema.pre("save", async function () {
-    // Don't hash the password again if it hasn't changed
     if (!this.isModified("password")) {
         return;
     }
-
     this.password = await bcrypt.hash(this.password, 10);
 });
-
-
-// ======================================================
-// Compare Password
-// ======================================================
 
 userSchema.methods.comparePassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
-
-// ======================================================
-// Generate JWT Token
-// ======================================================
-
 userSchema.methods.generateToken = function () {
-    return jwt.sign(
-        {
-            id: this._id,
-        },
-        process.env.JWT_SECRET_KEY,
-        {
-            expiresIn: process.env.JWT_EXPIRES_IN,
-        }
-    );
+    return jwt.sign({ id: this._id }, process.env.JWT_SECRET_KEY, {
+        expiresIn: process.env.JWT_EXPIRES_IN,
+    });
 };
-
-
-// ======================================================
-// Export User Model
-// ======================================================
 
 export const User = mongoose.model("User", userSchema);
 

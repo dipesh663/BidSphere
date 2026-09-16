@@ -24,6 +24,8 @@ app.use(cors(
     {
         origin: [
             process.env.FRONTEND_URL,
+            "https://bid-sphere-fe-git-main-dipesh663s-projects.vercel.app",
+            "http://localhost:5173",
         ].filter(Boolean),
         methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         credentials: true,

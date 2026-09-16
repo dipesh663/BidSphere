@@ -16,10 +16,13 @@ export const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
 
 export const isAuthorized = (...roles) => {
     return (req, res, next) => {
-        if (!roles.includes(req.user.role)) {
+        const userRole = req.user.role;
+        const normalizedRoles = roles.flatMap((role) => [role, role.replace(" ", "")]);
+
+        if (!normalizedRoles.includes(userRole)) {
             return next(
                 new ErrorHandler(
-                    `${req.user.role}is not allowed to access this resources.`,
+                    `${req.user.role} is not allowed to access this resource.`,
                     403
                 )
             );

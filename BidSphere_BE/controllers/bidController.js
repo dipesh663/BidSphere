@@ -43,10 +43,10 @@ export const placeBid = catchAsyncErrors(async (req, res, next) => {
         return next(new ErrorHandler("Auction Item not found.", 404));
     }
 
-    // ── Role guard: Auctioneers cannot place bids ─────────────────────────
-    if (req.user.role === "Auctioneer") {
+    // ── Role guard: only bidders can place bids ───────────────────────────
+    if (req.user.role !== "Bidder") {
         return next(new ErrorHandler(
-            "Auctioneers are not allowed to place bids. Only Bidders can participate in auctions.",
+            "Only Bidders can place bids.",
             403
         ));
     }

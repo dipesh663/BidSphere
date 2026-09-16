@@ -5,7 +5,12 @@ import {
   deletePaymentProof,
   fetchAllUsers,
   getAllPaymentProofs,
+  getAllUsersForAdmin,
+  getCommissionSummary,
+  getModerationLog,
   getPaymentProofDetail,
+  getUserDetailForAdmin,
+  moderateUserAccount,
   monthlyRevenue,
   updateProofStatus,
 } from "../controllers/superAdminController.js";
@@ -52,6 +57,41 @@ router.get(
   isAuthenticated,
   isAuthorized("SuperAdmin"),
   fetchAllUsers
+);
+
+router.get(
+  "/users/list",
+  isAuthenticated,
+  isAuthorized("SuperAdmin"),
+  getAllUsersForAdmin
+);
+
+router.get(
+  "/commission-summary",
+  isAuthenticated,
+  isAuthorized("SuperAdmin"),
+  getCommissionSummary
+);
+
+router.get(
+  "/moderation-log",
+  isAuthenticated,
+  isAuthorized("SuperAdmin"),
+  getModerationLog
+);
+
+router.get(
+  "/users/:id",
+  isAuthenticated,
+  isAuthorized("SuperAdmin"),
+  getUserDetailForAdmin
+);
+
+router.patch(
+  "/users/:id/moderate",
+  isAuthenticated,
+  isAuthorized("SuperAdmin"),
+  moderateUserAccount
 );
 
 router.get(

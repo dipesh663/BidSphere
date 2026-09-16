@@ -103,6 +103,19 @@ const auctionSchema = new mongoose.Schema({
         type: Date,
         default: null,
     },
+    moderationHistory: [
+        {
+            action: {
+                type: String,
+                enum: ["delete"],
+            },
+            reason: String,
+            createdAt: {
+                type: Date,
+                default: Date.now,
+            },
+        },
+    ],
 
     createdAt: {
         type: Date,

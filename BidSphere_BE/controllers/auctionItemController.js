@@ -146,7 +146,10 @@ export const getAuctionDetails = catchAsyncErrors(async (req, res, next) => {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return next(new ErrorHandler("Invalid Id format.", 400));
   }
-  const auctionItem = await Auction.findById(id);
+  const auctionItem = await Auction.findById(id).populate(
+    "createdBy",
+    "userName email phone profileImage"
+  );
   if (!auctionItem) {
     return next(new ErrorHandler("Auction not found.", 404));
   }
@@ -177,13 +180,34 @@ export const getAuctionDetails = catchAsyncErrors(async (req, res, next) => {
   }
 
   const bidders = auctionItem.bids.sort((a, b) => b.amount - a.amount);
+  const winningBidder = auctionItem.highestBidder
+    ? await User.findById(auctionItem.highestBidder).select(
+        "userName email phone profileImage"
+      )
+    : bidders[0]?.userId
+      ? await User.findById(bidders[0].userId).select(
+          "userName email phone profileImage"
+        )
+      : null;
+
+  // Resolve the winner immediately if the ending cron has not run yet.
+  const effectiveEnd =
+    auctionItem.countdownActive && auctionItem.dynamicEndTime && auctionItem.bids?.length > 0
+      ? auctionItem.dynamicEndTime
+      : auctionItem.endTime;
+  if (!auctionItem.highestBidder && bidders[0]?.userId && new Date(effectiveEnd) <= new Date()) {
+    auctionItem.highestBidder = bidders[0].userId;
+    await auctionItem.save();
+  }
 
   let auctioneerPaymentInfo = null;
   const isWinner =
     auctionItem.highestBidder &&
     String(auctionItem.highestBidder) === String(req.user._id);
   if (isWinner) {
-    const auctioneer = await User.findById(auctionItem.createdBy).select(
+    const auctioneer = await User.findById(
+      auctionItem.createdBy?._id || auctionItem.createdBy
+    ).select(
       "userName email paymentMethod"
     );
     auctioneerPaymentInfo = auctioneer;
@@ -193,6 +217,7 @@ export const getAuctionDetails = catchAsyncErrors(async (req, res, next) => {
     success: true,
     auctionItem,
     bidders,
+    winningBidder,
     auctioneerPaymentInfo,
   });
 });

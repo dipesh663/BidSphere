@@ -101,6 +101,20 @@ export const placeBid = catchAsyncErrors(async (req, res, next) => {
         const existingBidInAuction = auctionItem.bids.find(
             (bid) => bid.userId.toString() === req.user._id.toString()
         );
+
+        // A bidder must wait until another bidder takes the lead before bidding again.
+        const isCurrentHighestBidder = auctionItem.bids.some(
+            (bid) =>
+                bid.userId.toString() === req.user._id.toString() &&
+                Number(bid.amount) === Number(auctionItem.currentBid)
+        );
+        if (isCurrentHighestBidder) {
+            return next(new ErrorHandler(
+                "You are currently the highest bidder. Wait for another bidder to bid higher.",
+                400
+            ));
+        }
+
         const bidTime = new Date();
 
         if (existingBid && existingBidInAuction) {

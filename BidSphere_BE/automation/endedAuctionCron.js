@@ -43,7 +43,8 @@ async function finaliseAuction(auction) {
     \n- If you want to see the condition of your auction item then send your email on this: ${auctioneer.email}
     \n\nPlease ensure your payment is completed by [Payment Due Date]. Once we confirm the payment, the item will be shipped to you.
     \n\nThank you for participating!\n\nBest regards`; */
-    const message = `Dear ${bidder.userName},\n\nCongratulations! You have won the auction for ${auction.title}.\n\nPlease complete payment securely through eSewa in BidSphere.\n\nFor item questions, contact the auctioneer at ${auctioneer.email}.\n\nOnce eSewa payment is confirmed, the item will be shipped to you.\n\nThank you for participating!\n\nBest regards`;
+    const message = `Dear ${bidder.userName},\n\nCongratulations! You have won the auction for ${auction.title}.\n\nPlease complete payment securely through eSewa in BidSphere.\n\nFor item questions, contact the auctioneer at ${auctioneer.email}.\n\nOnce eSewa payment is confirmed, the item will be shipped to you.
+    \n\nThank you for participating!\n\nBest regards `;
     console.log("SENDING EMAIL TO HIGHEST BIDDER");
     sendEmail({ email: bidder.email, subject, message });
     console.log("SUCCESSFULLY EMAIL SENT TO HIGHEST BIDDER");

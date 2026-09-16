@@ -49,7 +49,11 @@ export const initiateAuctionPayment = catchAsyncErrors(async (req, res, next) =>
     return next(new ErrorHandler("Auction not found.", 404));
   }
 
-  if (new Date(auction.endTime) > Date.now()) {
+  const effectiveEnd =
+    auction.countdownActive && auction.dynamicEndTime && auction.bids?.length > 0
+      ? auction.dynamicEndTime
+      : auction.endTime;
+  if (new Date(effectiveEnd) > Date.now()) {
     return next(new ErrorHandler("Auction has not ended yet.", 400));
   }
 
@@ -474,9 +478,36 @@ export const markEsewaFailure = catchAsyncErrors(async (req, res, next) => {
 });
 
 export const getWonAuctions = catchAsyncErrors(async (req, res, next) => {
-  const auctions = await Auction.find({
-    highestBidder: req.user._id,
+  const candidateAuctions = await Auction.find({
+    $or: [
+      { highestBidder: req.user._id },
+      { "bids.userId": req.user._id },
+    ],
   }).sort({ createdAt: -1 });
+
+  const auctions = [];
+  for (const auction of candidateAuctions) {
+    const effectiveEnd =
+      auction.countdownActive && auction.dynamicEndTime && auction.bids?.length > 0
+        ? auction.dynamicEndTime
+        : auction.endTime;
+
+    if (!effectiveEnd || new Date(effectiveEnd) > new Date()) continue;
+
+    const highestBid = (auction.bids || []).reduce(
+      (current, bid) => (!current || bid.amount > current.amount ? bid : current),
+      null
+    );
+    const winnerId = auction.highestBidder || highestBid?.userId;
+
+    if (winnerId && String(winnerId) === String(req.user._id)) {
+      if (!auction.highestBidder) {
+        auction.highestBidder = winnerId;
+        await auction.save();
+      }
+      auctions.push(auction);
+    }
+  }
 
   const ids = auctions.map((auction) => auction._id);
   const transactions = await EsewaTransaction.find({

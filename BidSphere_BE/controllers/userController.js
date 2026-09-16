@@ -1,6 +1,8 @@
 import { catchAsyncErrors } from "../middlewares/catchAsyncErrors.js";
 import ErrorHandler from "../middlewares/error.js";
 import { User } from "../models/userSchema.js";
+import { Auction } from "../models/auctionSchema.js";
+import { EsewaTransaction } from "../models/esewaTransactionSchema.js";
 import { v2 as cloudinary } from "cloudinary";
 import { generateToken } from "../utils/jwtToken.js";
 
@@ -114,11 +116,71 @@ export const logout = catchAsyncErrors(async (req, res, next) => {
 
 
 export const fetchLeaderboard = catchAsyncErrors(async (req, res, next) => {
-    const users = await User.find({ moneySpent: { $gt: 0 } });
-    //algorithm to sort users based on money spent in descending order
-    const leaderboard = users.sort((a, b) => b.moneySpent - a.moneySpent);
+    const completedAuctionPayments = await EsewaTransaction.find({
+        purpose: "auction",
+        status: "COMPLETE",
+    }).select("auctionId").lean();
+    const completedPaymentAuctionIds = completedAuctionPayments
+        .map((transaction) => transaction.auctionId)
+        .filter(Boolean);
+
+    const paidAuctions = await Auction.find({
+        $or: [
+            { paymentStatus: "paid" },
+            { bidderPaid: true },
+            { _id: { $in: completedPaymentAuctionIds } },
+        ],
+    }).select("createdBy highestBidder currentBid bids").lean();
+
+    const bidderStats = new Map();
+    const auctioneerStats = new Map();
+
+    for (const auction of paidAuctions) {
+        const amount = Number(auction.currentBid || 0);
+        const highestEmbeddedBid = (auction.bids || []).reduce(
+            (current, bid) => (!current || bid.amount > current.amount ? bid : current),
+            null
+        );
+        const winnerId = auction.highestBidder || highestEmbeddedBid?.userId;
+
+        if (winnerId && amount > 0) {
+            const bidderId = String(winnerId);
+            const current = bidderStats.get(bidderId) || { auctionsWon: 0, moneySpent: 0 };
+            current.auctionsWon += 1;
+            current.moneySpent += amount;
+            bidderStats.set(bidderId, current);
+        }
+
+        if (auction.createdBy && amount > 0) {
+            const auctioneerId = String(auction.createdBy);
+            const current = auctioneerStats.get(auctioneerId) || { auctionsSuccessful: 0, moneyEarned: 0 };
+            current.auctionsSuccessful += 1;
+            current.moneyEarned += amount;
+            auctioneerStats.set(auctioneerId, current);
+        }
+    }
+
+    const userIds = [...new Set([
+        ...bidderStats.keys(),
+        ...auctioneerStats.keys(),
+    ])];
+    const users = await User.find({ _id: { $in: userIds } })
+        .select("userName email role profileImage")
+        .lean();
+
+    const bidders = users
+        .filter((user) => bidderStats.has(String(user._id)))
+        .map((user) => ({ ...user, ...bidderStats.get(String(user._id)) }))
+        .sort((a, b) => b.moneySpent - a.moneySpent);
+    const auctioneers = users
+        .filter((user) => auctioneerStats.has(String(user._id)))
+        .map((user) => ({ ...user, ...auctioneerStats.get(String(user._id)) }))
+        .sort((a, b) => b.moneyEarned - a.moneyEarned);
+
     res.status(200).json({
         success: true,
-        leaderboard,
+        bidders,
+        auctioneers,
+        leaderboard: bidders,
     });
 });

@@ -9,7 +9,7 @@ import userRoutes from "./router/userRoutes.js";
 import auctionItemRouter from "./router/auctionItemRoutes.js";
 import bidRouter from "./router/bidRoutes.js"
 import commissionRouter from "./router/commissionRouter.js";
-import superAdminRouter  from "./router/superAdminRoutes.js";
+import superAdminRouter from "./router/superAdminRoutes.js";
 import esewaRouter from "./router/esewaRoutes.js";
 import { endedAuctionCron } from "./automation/endedAuctionCron.js"
 import { verifyCommissionCron } from "./automation/verifyCommissionCron.js"
@@ -22,8 +22,12 @@ config({
 
 app.use(cors(
     {
-        origin: [process.env.FRONTEND_URL],
-        methods: ["GET", "POST", "PUT", "DELETE"],
+        origin: [
+            process.env.FRONTEND_URL,
+            "http://localhost:5173",
+            "http://localhost:5174",
+        ].filter(Boolean),
+        methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         credentials: true,
     }
 ));

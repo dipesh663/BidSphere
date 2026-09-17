@@ -105,10 +105,14 @@ export const getProfile = catchAsyncErrors(async (req, res, next) => {
 });
 
 export const logout = catchAsyncErrors(async (req, res, next) => {
+    const isProduction = process.env.NODE_ENV === "production"
+        || process.env.FRONTEND_URL?.startsWith("https://");
+
     res.status(200).clearCookie("token", {
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
+        path: "/",
     }).json({
         success: true,
         message: "Logged out successfully.",

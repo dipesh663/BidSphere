@@ -1,5 +1,7 @@
 export const generateToken = (user, message, statusCode, res) => {
     const token = user.generateToken();
+    const isProduction = process.env.NODE_ENV === "production"
+        || process.env.FRONTEND_URL?.startsWith("https://");
 
     res.status(statusCode).cookie("token", token, {
         expires: new Date(
@@ -7,8 +9,9 @@ export const generateToken = (user, message, statusCode, res) => {
             process.env.COOKIE_EXPIRE * 24 * 60 * 60 * 1000
         ),
         httpOnly: true,
-        secure: true,
-        sameSite: "none",
+        secure: isProduction,
+        sameSite: isProduction ? "none" : "lax",
+        path: "/",
     }).json({
         success: true,
         message,

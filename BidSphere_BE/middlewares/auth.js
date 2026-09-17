@@ -4,7 +4,12 @@ import ErrorHandler from "./error.js";
 import { catchAsyncErrors } from "./catchAsyncErrors.js";
 
 export const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
-    const token = req.cookies.token;
+    const cookieToken = req.cookies?.token;
+    const authorization = req.headers.authorization;
+    const bearerToken = authorization?.startsWith("Bearer ")
+        ? authorization.slice(7).trim()
+        : null;
+    const token = cookieToken || bearerToken;
 
     if (!token) {
         return next(
@@ -38,11 +43,10 @@ export const isAuthenticated = catchAsyncErrors(async (req, res, next) => {
 
 export const isAuthorized = (...roles) => {
     return (req, res, next) => {
-        const userRole = req.user.role;
+        const userRole = String(req.user.role || "").replace(/\s+/g, "").toLowerCase();
 
         const normalizedRoles = roles.flatMap((role) => [
-            role,
-            role.replace(" ", "")
+            String(role).replace(/\s+/g, "").toLowerCase()
         ]);
 
         if (!normalizedRoles.includes(userRole)) {

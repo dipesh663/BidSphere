@@ -451,7 +451,29 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
 });
 
 export const markEsewaFailure = catchAsyncErrors(async (req, res, next) => {
-  const { transactionUuid } = req.body;
+  let { transactionUuid, data } = req.body;
+  let callbackSignatureValid = false;
+  if (!transactionUuid && data) {
+    try {
+      const decoded = decodeEsewaResponse(data);
+      transactionUuid = decoded.transaction_uuid;
+      callbackSignatureValid = verifyResponseSignature(
+        decoded,
+        getEsewaConfig().secretKey
+      );
+    } catch (error) {
+      return res.status(200).json({
+        success: true,
+        message: "Payment was cancelled or failed.",
+      });
+    }
+  }
+  if (!req.user && !callbackSignatureValid) {
+    return res.status(200).json({
+      success: true,
+      message: "Payment was cancelled or failed.",
+    });
+  }
   if (!transactionUuid) {
     return res.status(200).json({
       success: true,

@@ -25,8 +25,8 @@ router.post(
   initiateCommissionPayment
 );
 
-router.post("/verify", isAuthenticated, verifyEsewaPayment);
-router.post("/failure", isAuthenticated, markEsewaFailure);
+router.post("/verify", verifyEsewaPayment);
+router.post("/failure", markEsewaFailure);
 router.get(
   "/won-auctions",
   isAuthenticated,

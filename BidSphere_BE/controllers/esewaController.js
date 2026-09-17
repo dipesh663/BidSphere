@@ -309,8 +309,12 @@ export const verifyEsewaPayment = catchAsyncErrors(async (req, res, next) => {
     return next(new ErrorHandler("Payment record not found.", 404));
   }
 
-  if (String(existing.userId) !== String(req.user._id)) {
+  if (req.user && String(existing.userId) !== String(req.user._id)) {
     return next(new ErrorHandler("You are not allowed to verify this payment.", 403));
+  }
+
+  if (!req.user && !signatureValid) {
+    return next(new ErrorHandler("Could not verify eSewa payment signature.", 400));
   }
 
   if (existing.status === "COMPLETE") {
@@ -457,7 +461,7 @@ export const markEsewaFailure = catchAsyncErrors(async (req, res, next) => {
 
   const transaction = await EsewaTransaction.findOne({
     transactionUuid,
-    userId: req.user._id,
+    ...(req.user ? { userId: req.user._id } : {}),
   });
 
   if (transaction && transaction.status === "PENDING") {
